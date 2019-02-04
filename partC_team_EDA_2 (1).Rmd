@@ -10,7 +10,7 @@ output:
 Please list as follows the members of your team, including yourself.
 
 Member 1: Dan Hu      
-Member 2: Neil Liu    
+Member 2: Team member NL    
     
 
 # Introduction
