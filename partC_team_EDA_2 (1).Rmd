@@ -1,0 +1,469 @@
+---
+title: "Final project Part C: Explore factors effecting income in NLSY '79 data"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+# Team members
+
+Please list as follows the members of your team, including yourself.
+
+Member 1: Dan Hu      
+Member 2: Neil Liu    
+    
+
+# Introduction
+
+Many factors effect a person's income over a period of years. Of course, someone's chosen profession is the principle factor. Related to this factor is level of education, since many high-paying professions require a college degree or an additional professional degree. Other factors effecting income may be due to social biases concerning gender, race or physical appearance. 
+
+Included with this assignment are datasets containing data on income, years of education, and physical characteristics spanning 23 years for respondents to NLSY '79. Also included is a notebook, `partC_data_and_example.Rmd`, containing a detailed description of the datasets, and an example of an exploratory data analysis along the lines we would like your team to perform.
+
+Your assignment for Part C of the final project is
+
+**Perform exploratory data analysis on the effects on income of combinations of other variables provided** 
+
+Further instructions are as follows. 
+
+1. Include in your analysis at least 3 variables besides income.     
+2. You may restrict the data to a single year, or include multiple years to study trends. The choice is yours and depends on the features you wish to analyze.   
+3. In the first section of your report, state explicitly which variables you will analyze along with income, and the year or years of data analyzed.     
+4. Survey the distribution of each individual variable included in your analysis and identify any values that may be erroneous or otherwise need special handling. State clearly how you will handle such values (remove the record from the data? replace by NA?).    
+5. Include in your analysis both plots and numerical summaries of key relationships, as illustrated in the included example.    
+6. You should work together as a team on this project. Each individual team member should submit a copy of the same solution in Vocareum. The report you produce as your solution to the assignment should be given below as an Rmarkdown notebook.  Prior to submiting the notebook, execute the RStudio command to "Knit to HTML". This will create the document `partC_team_EDA.html`. Include this HTML document with the .Rmd document when submitting your solution.      
+7.  You should divide the document into appropriate sections. In addition to code chunks, write textual explanations of what analyses are to be done, and any observations you have as a result of plots or numerical summaries generated.  If you create code chunks including several distinct commands, include comments in the chunk to explain your steps.     
+8. End the report with a separate section stating hypotheses you have about how income is effected by combinations of the variables you analyzed.   
+
+
+
+************************************************************************************
+Our analysis mainly focuses on the effects and combined effects of education, sex and race on income, and all the data we use to analyze is restricted to year 2014.
+************************************************************************************
+
+
+
+```{r}
+library(tidyverse)
+```
+
+# Load and make a general observation of the objective Income data
+
+```{r}
+load("income_data_nlsy79.RData")
+```
+
+```{r}
+glimpse(income_data_nlsy79)
+```
+
+The integer `CASEID` codes the individual respondents. The number of respondents is found as follows.
+```{r}
+length(unique(income_data_nlsy79$CASEID))
+```
+
+The integer `year` variable refers to the year the data was collected. The years for which we have data are revealed by:
+```{r}
+unique(income_data_nlsy79$year)
+```
+
+
+
+# Load and examine the Education data in general
+
+```{r}
+load("education_data_nlsy79.RData")
+```
+
+```{r}
+glimpse(education_data_nlsy79)
+```
+
+The integer `year` variable refers to the year the data was collected. The years for which we have data are revealed by:
+```{r}
+unique(education_data_nlsy79$year)
+```
+
+The variable that is reported here as `education` is the one on the survey described as "highest grade completed as of May 1 of survey year". So, this is a cummulative accounting of the achieved level of education. The possible values are:
+```{r}
+sort(unique(education_data_nlsy79$education))
+```
+
+## Load and examine the Physical characteristics data
+
+```{r}
+load("physical_data_nlsy79.RData")
+```
+
+```{r}
+glimpse(physical_data_nlsy79)
+```
+
+```{r}
+unique(physical_data_nlsy79$race)
+```
+
+```{r}
+unique(physical_data_nlsy79$sex)
+```
+
+
+
+** Our first analysis will be to study effects of years of education on income in the 2014 data **
+
+## Join the income and education data
+Since our first analysis concerns the effects of education on the income in 2014, so we first join the income dataset and education dataset together and restrict the year to 2014.
+```{r}
+income_edu_2014 <- income_data_nlsy79 %>% 
+  inner_join(education_data_nlsy79) %>% 
+  filter(year == 2014)
+```
+
+## Exploration of the income variable
+
+Study in how many cases is income data non-missing.
+```{r}
+sum(!is.na(income_edu_2014$income))
+```
+There are over 12,000 cases in all, so income is missing in many cases. However, 6783 is still a large number to study.
+
+
+
+Investigating if there are any erroneous data in the income data set:
+```{r}
+ggplot(
+  data = filter(income_edu_2014, !is.na(income)),
+  aes(x = income)
+  ) + 
+    geom_histogram()
+```
+
+investigating the 350k+population and seeing if its an anomaly because of the huge gap between 180k - 350k 
+```{r}
+income350k <- income_edu_2014 %>% filter(income > 350000)
+income350k$income
+```
+All these entries are the same because in each survey year, the highest 2% of incomes were collected and all persons in this group were assigned the minimum income for this group. The effect is that in each year, there will be about 2% of persons with the same high salary. We will include these high income in our analysis.
+
+
+There do not appear to be any additional anomalies in the income data that could represent erroneous values.
+
+
+Study the income distribution with a histogram plot and measure the income with better units, as follows:
+```{r}
+ggplot(
+  data = income_edu_2014, 
+  aes(x = income)
+) + 
+  geom_histogram() + 
+  scale_x_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05))
+```
+The histogram plot shows a right skewed shape of the income distribution, the highest peak appears in the distribution of zero income, follows the bumps in the distribution of approximataly 25k to 30k income. Then, as the income inscrease, the amount of the counts decrease. Finally, at the end of the tail, there's a bump in the distribution of around 370k income, which refers to the highest 2% of incomes.
+
+
+
+## Exploration of the education variable
+
+Study in how many cases is education data non-missing.
+```{r}
+sum(!is.na(income_edu_2014$education))
+```
+There are over 12,000 cases in all, so education is missing in many cases. However, 7065 is still a large number to study.
+
+
+Study the distribution of education with a bar plot, as follows:
+```{r}
+ggplot(
+  data = income_edu_2014,
+  aes(x = education)
+) + 
+  geom_bar()
+```
+
+This plot reveals the spurious value, 95, meaning some ungraded education. We'll exclude these from the analysis.
+```{r}
+ggplot(
+  data = filter(income_edu_2014, education < 95), 
+  aes(x = education)
+) + 
+  geom_bar()
+```
+
+For bettere exploration of the data, we create a factor expressing a natural level of education, so a high school education is grade 12, four years of college is grade 16, 4 years or more of postgraduate education is coded as grade 20.
+```{r}
+# Create a factor of education level
+edu_level <- cut(
+  income_edu_2014$education, 
+  breaks = c(0, 12, 16, 20), 
+  labels = c("hight school", "college", "postgraduation")
+)
+# Add a new variable to income_edu_2014 which represents the education level of each case
+income_edu_2014 <- mutate(income_edu_2014, education_level = edu_level)
+```
+
+
+
+
+## Explore the effects of years of education on income
+
+First we use boxplot to inspect the income distribution of the three levels of education respectively.
+```{r}
+ggplot(
+  data = filter(income_edu_2014, education < 95), 
+  aes(x = education_level, y = income)
+) + 
+  scale_y_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05)) + 
+  geom_boxplot()
+```
+The plot clearly shows that higher level of education comes with higher median income. This observation is in line with our guesses and intuitions. Plus, the plot also suggests that higher level of education will bring greater variability(or possibility) in the income, because the span between 1st quartile and 3rd quartile increases as the education level increases. 
+
+
+
+In addition, we also want to study the distribution of education level in the same income distribution. So we use the histogram plot with two layers to get insight into it.
+```{r}
+ggplot(
+  data = filter(income_edu_2014, education < 95), 
+  aes(x = income, fill = education_level)
+) + 
+  geom_histogram() + 
+  scale_x_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05)) +
+  scale_fill_discrete(name = "education level")
+```
+The histogram clearly shows that for distribution of less than 50k income, high school education level accounts for the majority. Since then, with the increase in annual income, the proportion of college and postgraduation level has occupied the majority. And as for the distribution of the highest 2% income, the proportion of postgraduation level is more significant than any previous distribution.
+
+
+
+
+** Our second analysis will be to study effects of physical characteristics on income in the 2014 data **
+
+## Join the physical characteristics data and income_edu_2014
+```{r}
+income_edu_physical_2014 <- inner_join(income_edu_2014, physical_data_nlsy79)
+glimpse(income_edu_physical_2014)
+```
+
+
+## Exploration of the physical characteristics variable(We will mainly focus on race and sex)
+
+Firstly, we inspect into the sex variable to see if there are any erroneous data and to study the distribution of sex.
+```{r}
+sum(is.na(income_edu_physical_2014$sex))
+```
+There are no missing values.
+
+```{r}
+ggplot(
+  data = filter(income_edu_physical_2014, education < 95), 
+  aes(x = sex)
+) + 
+  geom_bar()
+```
+The numbers of males and females are comparable.
+
+
+
+Secondly, we inspect into the race variable to see if there are any erroneous data and to study the distribution of race.
+```{r}
+sum(is.na(income_edu_physical_2014$race))
+```
+There are no missing values.
+
+```{r}
+ggplot(
+  data = filter(income_edu_physical_2014, education < 95), 
+  aes(x = race)
+) + 
+  geom_bar()
+```
+This shows that in each racial group we have over 1200 respondents. This is a high enough sample size for meaningful analysis. Among the respondents, NBNH group occupies the majority while hispanic group has the least proportion, and black group is in the middle.
+
+
+## Explore the effects of sex on income
+
+Firstly we use boxplot to inspect the income distribution of male and female respectively.
+```{r}
+ggplot(
+  data = filter(income_edu_physical_2014, education < 95), 
+  aes(x = sex, y = income)
+) + 
+  scale_y_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05)) + 
+  geom_boxplot()
+```
+From the boxplot we notice the median income for male is higher than that for female. Plus, there's more variability in income for male than female, because the income of half of the female respondents concentrates between 0k-50k, while the income of half of the male respondents concentrates between 0k-75k. In general, there is a clear trend that men make more than women up to the fourth quartile. 
+
+
+
+Secondly, we want to investigate the mean income for female and male.
+```{r}
+# Group data by sex and compute mean income
+group_by_sex <- income_edu_physical_2014 %>% 
+  filter(education < 95) %>%
+  group_by(sex) %>% 
+  summarize(mean_income = mean(income, na.rm = TRUE))
+
+# Visualize the relationship of sex and mean income
+ggplot(
+  data = group_by_sex, 
+  aes(x = sex,y = mean_income)
+  )+
+  geom_col()
+```
+Here clearly there is a significant difference in mean income between men and women. So from the data we can hypothsize that on average males make >$20k more than females in 2014.
+
+
+
+## Explore the effects of race on income
+
+Firstly we use boxplot to inspect the income distribution of different race group.
+```{r}
+ggplot(
+  data = filter(income_edu_physical_2014, education < 95), 
+  aes(x = race, y = income)
+) + 
+  scale_y_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05)) + 
+  geom_boxplot()
+```
+The plot shows racial disparity in median income, NBNH has the highest median income, while hispanic has the second and black has the least median income. Actually in generall, NBNH makes the most amount of money at all quartiles.
+
+
+
+Secondly, we want to investigate the mean income for different race group.
+```{r}
+# Group data by race and compute mean income
+group_by_race <- income_edu_physical_2014 %>% 
+  filter(education < 95) %>% 
+  group_by(race) %>% 
+  summarize(mean_income = mean(income, na.rm = TRUE))
+
+# Visualize the relationship of race and mean income
+ggplot(
+  data = group_by_race, 
+  aes(x = race, y = mean_income)
+  ) + 
+  geom_col()
+```
+Here there is a trend up in mean income from left to right and there is a significant increase from hispanic to NBNH, which mean that NBNH makes significantly more than the rest of the population.
+
+
+## Explore the combined effects of sex and race on income
+
+Firstly, we study the income distribution of different combinations of sex and race with boxplot:
+```{r}
+# Create a new variable which combine sex and race
+income_edu_physical_2014 <- income_edu_physical_2014 %>% 
+  mutate(sex_race = paste(sex,race))
+
+# Visualize the income distribution of different combinations of sex and race
+ggplot(
+  data = income_edu_physical_2014, 
+  aes(x = sex_race, y = income)
+  ) + 
+  scale_y_continuous(name = "income (k)", 
+                     labels = c(0, 50, 100, 150, 200, 300), 
+                     breaks = c(0, .5e+05, 1e+05, 1.5e+05, 2e+05, 3e+05)) + 
+  geom_boxplot()
+```
+The plot shows clearly that men make more median income than women regardless of race with one exception: black men make less than NBNH female. Another interesting difference is the fourth spread ranges for males are much greater than the female counter parts meaning that the range of income is wider, implying a higher potential for salary increases in the male population than the female population. 
+
+
+
+Secondly, we want to investigate the mean income for different combination of sex and race.
+```{r}
+# Group the data by combination of sex and race, compute the mean income correspondingly
+group_by_sex_race <- income_edu_physical_2014 %>% 
+  filter(education < 95) %>% 
+  group_by(sex_race) %>% 
+  summarize(mean_income = mean(income, na.rm = TRUE))
+
+# Visualize the data
+ggplot(
+  data = group_by_sex_race, 
+  aes(x = sex_race, y = mean_income)
+  ) + 
+  geom_col()
+```
+This breakdown is very interesting as it is clear that men make significanly more than women on average regardless of race. Also male NBNH makes a significantly higher mean income than any other combination for more than 15k. Making this combination the most lucrative.
+
+
+
+** Our third analysis will be to study combined effects of race and sex and education data in 2014**
+
+## Explore the combined effects of sex and education on mean income
+```{r}
+# Group the data by sex and education level
+group_by_sex_edu <- income_edu_physical_2014 %>% 
+  filter(education < 95) %>% 
+  group_by(sex, education_level) %>% 
+  summarise(mean_income = mean(income, na.rm = TRUE))
+
+# Visualize the grouped data
+ggplot(
+  data = group_by_sex_edu, 
+  aes(x = sex, y = mean_income)
+) + 
+  scale_y_continuous(name = "mean income (k)", 
+                     labels = c(0, 50, 100), 
+                     breaks = c(0, 5e+04, 1e+05)) +
+  geom_col() + 
+  facet_wrap(~education_level)
+```
+From the plots we can clearly see that with the same education level, male has much more mean income than female, plus, the higher the education level, the greater the mean income gap between female and male. Finally, the increase in the mean income of female which comes with the higher education level is not as significantly as male, female with postgraduation level even make less mean income than male with college level.
+
+
+
+## Explore the combined effects of race and education on mean income
+```{r}
+# Group the data by race and education level
+group_by_race_edu <- income_edu_physical_2014 %>% 
+  filter(education < 95) %>% 
+  group_by(race, education_level) %>% 
+  summarise(mean_income = mean(income, na.rm = TRUE))
+
+# Visualize the grouped data
+ggplot(
+  data = group_by_race_edu, 
+  aes(x = race, y = mean_income)
+) + 
+  scale_y_continuous(name = "mean income (k)", 
+                     labels = c(0, 50, 100), 
+                     breaks = c(0, 5e+04, 1e+05)) +
+  geom_col() + 
+  facet_wrap(~education_level)
+```
+The plot shows that with the same education level, NBNH make the highest mean income except for the postgraduation respondents, hispanic group makes almost the same mean income as NBNH group, and among three racial group, when with the same education level, black group always makes the least mean income.
+
+
+
+## Explore the distribution of sex race and education in the highest 2% income
+```{r}
+ggplot(
+  data = filter(income_edu_physical_2014, education < 95, income > 350000), 
+  aes(x = sex_race, fill = education_level)
+) + 
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_discrete(name = "education level")
+```
+From the bar plot, we can clearly see that among the highest 2% income part, male NBNH who has college or postgraduation level occupies the majority of the proportion.
+
+
+## Hypotheses for further analysis
+
+Based on the plots and the grouped summary analyses we state the following hypotheses.
+
+1. On average the more education you have the higher your income across all genders and races but makes a bigger difference if one is male.
+2. Males on average earn ~20k more than women.
+3. On average NBNH makes more than hispanics who make more than blacks.
+4. It is unlikely for one to be the top earners to have only a high school degree however, there is a similar probabillity to become a top earner if you have a graduate degree or a post-graduate degree across all genders and races.
+5. Based on the box plots, the variablility in income widens as one receives more education. This means that as one gains more education their potential to earn increases as well as their average earnings. 
+6. Males across all races on average makes more than the average wage of females of any race.
+7. If you are a top 2% mearner you are most likely a male NBNH.
